@@ -9,7 +9,7 @@ enum NavItem: String, CaseIterable {
 }
 
 struct ContentView: View {
-    @State var selectedItem:NavItem? = .recent
+    @State var selectedItem:NavItem? = Bundle.main.bundleIdentifier?.hasSuffix(".custompreview") == true ? .ambientMixer : .recent
     
     let recent = Recent()
     let ambientSounds = AmbientSounds()

@@ -59,3 +59,9 @@ fastlane/test_output/
 # Other
 *.orig
 
+
+# Local build and test artifacts
+build/
+DerivedData/
+*.app
+*.dSYM

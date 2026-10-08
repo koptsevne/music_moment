@@ -12,6 +12,7 @@ class WindowManager: NSWindowController {
             backing: .buffered,
             defer: false
         )
+        window.title = appDisplayName()
         window.contentView = contentView
         self.init(window: window)
         

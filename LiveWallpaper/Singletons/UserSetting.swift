@@ -66,10 +66,13 @@ enum VideoType: String, Codable {
 }
 
 
-struct Sound: Codable {
+struct Sound: Codable, Identifiable {
     var name:String
     var isEnabled: Bool
     var volume: Float
+    var customFilename: String? = nil
+    var id: String { customFilename ?? "builtin:\(name)" }
+    var isCustom: Bool { customFilename != nil }
 }
 
 class UserSetting: ObservableObject {
@@ -148,6 +151,7 @@ class UserSetting: ObservableObject {
         self.adaptiveMode = defaults.bool(forKey: "adaptiveMode")
         
         migrate()
+        AudioMixer.shared.process(mixerEnabled: mixerEnabled, sounds: sounds)
     }
 
     func migrate(){

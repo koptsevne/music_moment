@@ -1,65 +1,43 @@
-//
-//  AudioMixer.swift
-//  LiveWallpaper
-//
-
-
 import AVFoundation
+import Combine
 
-class AudioMixer {
+class AudioMixer: ObservableObject {
     static let shared = AudioMixer()
-    private var players: [String: AVAudioPlayer] = [:]  // Dictionary to store players by filename
-    
-    func process(mixerEnabled: Bool, sounds: [Sound]){
-        if mixerEnabled {
-            for sound in sounds {
-                if sound.isEnabled {
-                    playSound(fileName: sound.name, volume: sound.volume)
-                } else {
-                    stopSound(fileName: sound.name)
-                }
-                
+    @Published var lastError: String?
+    private var players: [String: AVAudioPlayer] = [:]
+    private var failedIDs = Set<String>()
+
+    func process(mixerEnabled: Bool, sounds: [Sound]) {
+        let active = Set(sounds.filter { mixerEnabled && $0.isEnabled }.map(\.id))
+        for id in Array(players.keys) where !active.contains(id) {
+            players.removeValue(forKey: id)?.stop()
+        }
+        failedIDs.formIntersection(active)
+        for sound in sounds where active.contains(sound.id) {
+            if let player = players[sound.id] {
+                player.volume = sound.volume
+                continue
             }
-        } else {
-            stopAll()
-        }
-    }
-    
-    private func stopAll() {
-        for player in players.values {
-            player.stop()
-        }
-        players.removeAll()
-    }
-    
-    private func stopSound(fileName:String){
-        players[fileName]?.stop()
-        players.removeValue(forKey: fileName)
-    }
-    
-    private func playSound(fileName: String, volume: Float) {
-    
-        if let player = players[fileName] {
-            player.volume = volume
-            player.play()
-            return
-        }
-        
-        guard let url = Bundle.main.url(forResource: fileName, withExtension: "mp3") else {
-            print("Error: \(fileName).mp3 not found in bundle")
-            return
-        }
-        
-        do {
-            let player = try AVAudioPlayer(contentsOf: url)
-            player.numberOfLoops = -1  // Loop indefinitely
-            player.volume = volume
-            player.prepareToPlay()
-            player.play()
-            
-            players[fileName] = player  // Store the player
-        } catch {
-            print("Error: Could not play \(fileName) - \(error.localizedDescription)")
+            guard !failedIDs.contains(sound.id) else { continue }
+            do {
+                let url = sound.customFilename.flatMap { CustomSoundStore.url(for: $0) }
+                    ?? (sound.isCustom ? nil : Bundle.main.url(forResource: sound.name, withExtension: "mp3"))
+                guard let url else {
+                    throw NSError(domain: "AudioMixer", code: 1,
+                                  userInfo: [NSLocalizedDescriptionKey: "Audio file not found."])
+                }
+                let player = try AVAudioPlayer(contentsOf: url)
+                player.numberOfLoops = -1
+                player.volume = sound.volume
+                guard player.prepareToPlay(), player.play() else {
+                    throw NSError(domain: "AudioMixer", code: 2,
+                                  userInfo: [NSLocalizedDescriptionKey: "Could not start playback."])
+                }
+                players[sound.id] = player
+            } catch {
+                failedIDs.insert(sound.id)
+                lastError = "\(sound.name): \(error.localizedDescription)"
+            }
         }
     }
 }
